@@ -59,6 +59,7 @@ func (p *PreparePayment) AddBasket(basket ...Basket) {
 	}
 
 	basketBytes, err := json.Marshal(basketData)
+
 	if err != nil {
 		panic(err)
 	}
