@@ -25,24 +25,49 @@ type Basket struct {
 }
 
 type PreparePayment struct {
-	MerchantId     string   `schema:"merchant_id,required"`
-	MerchantOid    string   `schema:"merchant_oid,required"`
+	// MerchantId PayTR tarafından size verilen Mağaza numarası
+	MerchantId     int   `schema:"merchant_id,required"`
+	// UserIP İstek anında aldığınız müşteri ip numarası. En fazla 39 karakter (ipv4)
 	UserIP         string   `schema:"user_ip,required"`
+	// MerchantOid Satış işlemi için belirlediğiniz benzersizsipariş numarası.
+	// En fazla 64 karakter, Alfa numerik
+	MerchantOid    string   `schema:"merchant_oid,required"`
+	// Mail Müşterinin sisteminizde kayıtlı olan eposta adresi.
 	Mail           string   `schema:"email,required"`
-	PaymentAmount  string   `schema:"payment_amount,required"`
+	// PaymentAmount Siparişe ait toplam ödeme tutarının 100 ile çarpılmış hali.
+	// Örn: 34.56 TL için 3456 gönderilmelidir
+	PaymentAmount  int   `schema:"payment_amount,required"`
+	// token İsteğin sizden geldiğine ve içeriğin değişmediğine emin olmamız
+	// için oluşturacağınız değerdir.
 	token          string   `schema:"paytr_token,required"`
+	// basket Müşterinin sepet/sipariş içeriğinin encode olmuş hali
 	basket         string   `schema:"user_basket,required"`
+	// basketData Müşterinin sepet/sipariş içeriğinin sade hali
 	basketData     []Basket `schema:"-"`
+	// Debug Hata durumunda nedeni açıklaması için 1 yapın. paytr.Enable = 1
 	Debug          mode     `schema:"debug_on"`
+	// NoInstallment Taksit yapılmasını istemiyorsanız,
+	// sadece tek çekim sunacaksanız 1 yapın. paytr.Enable = 1
 	NoInstallment  mode     `schema:"no_installment"`
+	// MaxInstallment Sayfada görüntülenecek taksit adedini sınırlamak istiyorsanız
+	// uygun şekilde değiştirin. Sıfır (0) gönderilmesi durumunda yürürlükteki en fazla
+	// izin verilen taksit geçerli olur.
 	MaxInstallment int16    `schema:"max_installment"`
+	// UserName Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız ad ve soyad bilgisi.
 	UserName       string   `schema:"user_name,required"`
+	// UserAddress Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız adres bilgisi.
 	UserAddress    string   `schema:"user_address,required"`
+	// UserAddress Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız telefon bilgisi.
 	UserPhone      string   `schema:"user_phone,required"`
+	// OkURL Başarılı ödeme sonrası müşterinizin yönlendirileceği sayfa.
 	OkURL          string   `schema:"merchant_ok_url,required"`
+	// FailURL Ödeme sürecinde beklenmedik bir hata oluşması durumunda müşterinizin yönlendirileceği sayfa.
 	FailURL        string   `schema:"merchant_fail_url,required"`
-	TimeoutLimit   string   `schema:"timeout_limit,required"`
+	// TimeoutLimit İşlem zaman aşımı süresi - dakika cinsinden.
+	TimeoutLimit   int16   `schema:"timeout_limit,required"`
+	// Currency İşlemin yapılacağı para birimi. Örn. TL
 	Currency       string   `schema:"currency,required"`
+	// Test etmek istiyorsanız sanal iframe için bu modu 1 yapın. paytr.Enable = 1
 	Test           mode     `schema:"test_mode"`
 }
 
@@ -67,7 +92,7 @@ func (p *PreparePayment) AddBasket(basket ...Basket) {
 }
 
 func (p *PreparePayment) GenerateToken(merchantKey, merchantSalt string) string {
-	hashStr := p.MerchantId + p.UserIP + p.MerchantOid + p.Mail + p.PaymentAmount +
+	hashStr := strconv.Itoa(p.MerchantId) + p.UserIP + p.MerchantOid + p.Mail + strconv.Itoa(p.PaymentAmount) +
 		p.basket + strconv.Itoa(int(p.NoInstallment)) + strconv.Itoa(int(p.MaxInstallment)) +
 		p.Currency + strconv.Itoa(int(p.Test)) + merchantSalt
 
@@ -80,7 +105,7 @@ func (p *PreparePayment) GenerateToken(merchantKey, merchantSalt string) string 
 
 func (p *PreparePayment) FetchToken() (TokenResponse, error) {
 	var result TokenResponse
-	form := url.Values{}
+	var form url.Values
 	if err := schemaEncoder.Encode(p, form); err != nil {
 		return result, err
 	}
