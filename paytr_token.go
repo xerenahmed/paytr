@@ -105,7 +105,8 @@ func (p *PreparePayment) GenerateToken(merchantKey, merchantSalt string) string 
 
 func (p *PreparePayment) FetchToken() (TokenResponse, error) {
 	var result TokenResponse
-	var form url.Values
+
+	form := url.Values{}
 	if err := schemaEncoder.Encode(p, form); err != nil {
 		return result, err
 	}
