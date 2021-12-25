@@ -1,4 +1,4 @@
-module github.com/eren5960/paytr
+module github.com/xerenahmed/paytr
 
 go 1.15
 
