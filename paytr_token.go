@@ -5,73 +5,75 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/gorilla/schema"
 )
 
 type mode int16
 
 var (
-	Enable  = mode(1)
+	// Enable ...
+	Enable = mode(1)
+	// Disable ...
 	Disable = mode(0)
 )
 
+// Basket siparişteki bir ürünün bilgilerini tutar.
 type Basket struct {
 	Name    string
 	PerCost int
 	Amount  int
 }
 
+// PreparePayment
 type PreparePayment struct {
 	// MerchantId PayTR tarafından size verilen Mağaza numarası
-	MerchantId     int   `schema:"merchant_id,required"`
+	MerchantId int `schema:"merchant_id,required"`
 	// UserIP İstek anında aldığınız müşteri ip numarası. En fazla 39 karakter (ipv4)
-	UserIP         string   `schema:"user_ip,required"`
-	// MerchantOid Satış işlemi için belirlediğiniz benzersizsipariş numarası.
-	// En fazla 64 karakter, Alfa numerik
-	MerchantOid    string   `schema:"merchant_oid,required"`
+	UserIP string `schema:"user_ip,required"`
+	// MerchantOid Satış işlemi için belirlediğiniz benzersiz sipariş numarası. En fazla 64 karakter, Alfa numerik
+	MerchantOid string `schema:"merchant_oid,required"`
 	// Mail Müşterinin sisteminizde kayıtlı olan eposta adresi.
-	Mail           string   `schema:"email,required"`
-	// PaymentAmount Siparişe ait toplam ödeme tutarının 100 ile çarpılmış hali.
-	// Örn: 34.56 TL için 3456 gönderilmelidir
-	PaymentAmount  int   `schema:"payment_amount,required"`
-	// token İsteğin sizden geldiğine ve içeriğin değişmediğine emin olmamız
-	// için oluşturacağınız değerdir.
-	token          string   `schema:"paytr_token,required"`
+	Mail string `schema:"email,required"`
+	// PaymentAmount Siparişe ait toplam ödeme tutarının 100 ile çarpılmış hali. Örn: 34.56 TL için 3456 gönderilmelidir
+	PaymentAmount int `schema:"payment_amount,required"`
+	// token İsteğin sizden geldiğine ve içeriğin değişmediğine emin olmamız için oluşturacağınız değerdir.
+	token string `schema:"paytr_token,required"`
 	// basket Müşterinin sepet/sipariş içeriğinin encode olmuş hali
-	basket         string   `schema:"user_basket,required"`
+	basket string `schema:"user_basket,required"`
 	// basketData Müşterinin sepet/sipariş içeriğinin sade hali
-	basketData     []Basket `schema:"-"`
+	basketData []Basket `schema:"-"`
 	// Debug Hata durumunda nedeni açıklaması için 1 yapın. paytr.Enable = 1
-	Debug          mode     `schema:"debug_on"`
-	// NoInstallment Taksit yapılmasını istemiyorsanız,
-	// sadece tek çekim sunacaksanız 1 yapın. paytr.Enable = 1
-	NoInstallment  mode     `schema:"no_installment"`
-	// MaxInstallment Sayfada görüntülenecek taksit adedini sınırlamak istiyorsanız
-	// uygun şekilde değiştirin. Sıfır (0) gönderilmesi durumunda yürürlükteki en fazla
-	// izin verilen taksit geçerli olur.
-	MaxInstallment int16    `schema:"max_installment"`
+	Debug mode `schema:"debug_on"`
+	// NoInstallment Taksit yapılmasını istemiyorsanız sadece tek çekim sunacaksanız 1 yapın. paytr.Enable = 1
+	NoInstallment mode `schema:"no_installment"`
+	// MaxInstallment Sayfada görüntülenecek taksit adedini sınırlamak istiyorsanız uygun şekilde değiştirin. Sıfır (0) gönderilmesi durumunda yürürlükteki en fazla izin verilen taksit geçerli olur.
+	MaxInstallment int16 `schema:"max_installment"`
 	// UserName Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız ad ve soyad bilgisi.
-	UserName       string   `schema:"user_name,required"`
+	UserName string `schema:"user_name,required"`
 	// UserAddress Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız adres bilgisi.
-	UserAddress    string   `schema:"user_address,required"`
+	UserAddress string `schema:"user_address,required"`
 	// UserAddress Müşterinizin sitenizde kayıtlı veya form aracılığıyla aldığınız telefon bilgisi.
-	UserPhone      string   `schema:"user_phone,required"`
+	UserPhone string `schema:"user_phone,required"`
 	// OkURL Başarılı ödeme sonrası müşterinizin yönlendirileceği sayfa.
-	OkURL          string   `schema:"merchant_ok_url,required"`
+	OkURL string `schema:"merchant_ok_url,required"`
 	// FailURL Ödeme sürecinde beklenmedik bir hata oluşması durumunda müşterinizin yönlendirileceği sayfa.
-	FailURL        string   `schema:"merchant_fail_url,required"`
+	FailURL string `schema:"merchant_fail_url,required"`
 	// TimeoutLimit İşlem zaman aşımı süresi - dakika cinsinden.
-	TimeoutLimit   int16   `schema:"timeout_limit,required"`
+	TimeoutLimit int16 `schema:"timeout_limit,required"`
 	// Currency İşlemin yapılacağı para birimi. Örn. TL
-	Currency       string   `schema:"currency,required"`
+	Currency string `schema:"currency,required"`
 	// Test etmek istiyorsanız sanal iframe için bu modu 1 yapın. paytr.Enable = 1
-	Test           mode     `schema:"test_mode"`
+	Test mode `schema:"test_mode"`
 }
 
-func (p *PreparePayment) AddBasket(basket ...Basket) {
+// AddBasket Siparişe ürün ekler.
+func (p *PreparePayment) AddBasket(basket ...Basket) error {
 	p.basketData = append(p.basketData, basket...)
 
 	var basketData []map[int]interface{}
@@ -84,13 +86,14 @@ func (p *PreparePayment) AddBasket(basket ...Basket) {
 	}
 
 	basketBytes, err := json.Marshal(basketData)
-
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("basket data marshal error: %v", err)
 	}
 	p.basket = base64.StdEncoding.EncodeToString(basketBytes)
+	return nil
 }
 
+// GenerateToken Satın alma ekranının görüntülenmesi için gerekli olan token bilgisini oluşturur.
 func (p *PreparePayment) GenerateToken(merchantKey, merchantSalt string) string {
 	hashStr := strconv.Itoa(p.MerchantId) + p.UserIP + p.MerchantOid + p.Mail + strconv.Itoa(p.PaymentAmount) +
 		p.basket + strconv.Itoa(int(p.NoInstallment)) + strconv.Itoa(int(p.MaxInstallment)) +
@@ -98,15 +101,16 @@ func (p *PreparePayment) GenerateToken(merchantKey, merchantSalt string) string 
 
 	tokenHmac := hmac.New(sha256.New, []byte(merchantKey))
 	tokenHmac.Write([]byte(hashStr))
-
 	p.token = base64.StdEncoding.EncodeToString(tokenHmac.Sum(nil))
 	return p.token
 }
 
+// FetchToken token alma işlemini yapar
 func (p *PreparePayment) FetchToken() (TokenResponse, error) {
 	var result TokenResponse
 
 	form := url.Values{}
+	schemaEncoder := schema.NewEncoder()
 	if err := schemaEncoder.Encode(p, form); err != nil {
 		return result, err
 	}
@@ -116,9 +120,7 @@ func (p *PreparePayment) FetchToken() (TokenResponse, error) {
 		return result, err
 	}
 
-	defer func() {
-		_ = res.Body.Close()
-	}()
+	defer res.Body.Close()
 
 	resText, err := ioutil.ReadAll(res.Body)
 	if err != nil {

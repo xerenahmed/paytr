@@ -4,12 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"github.com/gorilla/schema"
 	"strconv"
 )
 
-var schemaEncoder = schema.NewEncoder()
-
+// HandlePayment paytr tarafından kullanılan bir işlemin size haber verildiği bilgiler.
 type HandlePayment struct {
 	Hash                string `schema:"hash,required"`
 	MerchantId          string `schema:"merchant_id"`
@@ -24,6 +22,7 @@ type HandlePayment struct {
 	FailedReasonMessage string `schema:"failed_reason_msg"`
 }
 
+// Valid Gelen isteğin doğruluğunu kontrol edin.
 func (p HandlePayment) Valid(merchantKey, merchantSalt string) bool {
 	salt := hmac.New(sha256.New, []byte(merchantKey))
 	salt.Write([]byte(p.MerchantOid + merchantSalt + p.Status + strconv.Itoa(p.TotalAmount)))
